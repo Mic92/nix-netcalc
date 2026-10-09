@@ -4,6 +4,8 @@ IPv4, IPv6 and MAC address calculator in pure Nix. It uses builtins only, so
 there is no `nixpkgs.lib` dependency.
 
 ```nix
+# with the flake: inputs.nix-netcalc.url = "github:Mic92/nix-netcalc";
+#                 net = inputs.nix-netcalc.lib;
 let
   net = import ./default.nix;
 in
