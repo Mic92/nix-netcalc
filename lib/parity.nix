@@ -1,6 +1,6 @@
 # Differential tests against duairc's netu.nix (reference implementation).
 let
-  v = import ./default.nix;
+  v = import ../default.nix;
   raw = (import ./reference.nix).lib.net;
   # net.nix (oddlama) wraps host with a range check; reproduce it here
   ref = raw // {

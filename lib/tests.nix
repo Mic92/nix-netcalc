@@ -1,5 +1,5 @@
 let
-  v = import ./default.nix;
+  v = import ../default.nix;
   eq =
     name: a: b:
     if a == b then true else throw "FAIL ${name}: got ${builtins.toJSON a}, want ${builtins.toJSON b}";

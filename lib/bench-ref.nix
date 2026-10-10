@@ -1,7 +1,7 @@
-# usage: nix-instantiate --eval --strict bench-ref.nix --arg n 5000 --argstr op parse --argstr impl ours|ref
+# usage: nix-instantiate --eval --strict lib/bench-ref.nix --arg n 5000 --argstr op parse --argstr impl ours|ref
 { n ? 5000, op ? "parse", impl ? "ours" }:
 let
-  ours = import ./default.nix;
+  ours = import ../default.nix;
   ref = (import ./reference.nix).lib.net;
   idx = builtins.genList (i: i) n;
   mk6 = i: "2001:db8:${toString (i / 9000 + 1)}:${toString (i - (i / 9000) * 9000 + 1)}::/64";

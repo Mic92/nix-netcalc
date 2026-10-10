@@ -274,17 +274,17 @@ Beyond the reference: `overlaps`, `contains` on cidrs, and `aggregate`.
 ## Tests
 
 ```sh
-nix-instantiate --eval --strict tests.nix      # IPv6
-nix-instantiate --eval --strict v4-tests.nix   # IPv4
-nix-instantiate --eval --strict mac-tests.nix  # MAC
-nix-instantiate --eval --strict parity.nix     # IPv6, against duairc's netu.nix
+nix-instantiate --eval --strict lib/tests.nix      # IPv6
+nix-instantiate --eval --strict lib/v4-tests.nix   # IPv4
+nix-instantiate --eval --strict lib/mac-tests.nix  # MAC
+nix-instantiate --eval --strict lib/parity.nix     # IPv6, against duairc's netu.nix
 ```
 
 Each prints `true` on success and throws a descriptive error on failure.
-`parity.nix` and `v4-tests.nix` compare against duairc's `netu.nix`, which they
+`lib/parity.nix` and `lib/v4-tests.nix` compare against duairc's `netu.nix`, which they
 fetch at a pinned commit of
 [oddlama/nixos-extra-modules](https://github.com/oddlama/nixos-extra-modules)
-(see `reference.nix`) and need network access on the first run.
+(see `lib/reference.nix`) and need network access on the first run.
 In that version `ip.add`, `ip.subtract`, `ip.diff` and `cidr.add` are broken, so those functions are tested against values computed with Python's
 `ipaddress` module.
 
@@ -292,7 +292,7 @@ In that version `ip.add`, `ip.subtract`, `ip.diff` and `cidr.add` are broken, so
 
 ```sh
 NIX_SHOW_STATS=1 NIX_SHOW_STATS_PATH=/tmp/s.json \
-  nix-instantiate --eval --strict bench.nix --arg n 50000 --argstr op aggregate
+  nix-instantiate --eval --strict lib/bench.nix --arg n 50000 --argstr op aggregate
 ```
 
 `op` is one of `noop`, `parse`, `format`, `contains` or `aggregate`.

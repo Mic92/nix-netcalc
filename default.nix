@@ -809,5 +809,5 @@ in
   # number of host bits, like duairc's net.cidr.size
   size = c: hostBits (toCidr c);
   parseAggregate = l: map format (aggregate (map parse l));
-  mac = import ./mac.nix;
+  mac = import ./lib/mac.nix;
 }

@@ -1,10 +1,10 @@
-# usage: nix-instantiate --eval --strict bench.nix --arg n 10000 --argstr op parse
+# usage: nix-instantiate --eval --strict lib/bench.nix --arg n 10000 --argstr op parse
 {
   n ? 10000,
   op ? "parse",
 }:
 let
-  v = import ./default.nix;
+  v = import ../default.nix;
   idx = builtins.genList (i: i) n;
   mk = i: "2001:db8:${toString (i / 9000 + 1)}:${toString (i - (i / 9000) * 9000 + 1)}::/64";
   inputs = map mk idx;
