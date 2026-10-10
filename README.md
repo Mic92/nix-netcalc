@@ -96,72 +96,123 @@ net.child "10.10.10.0/24" "10.0.0.0/8"                              # true
 net.containsAddr (net.parse "fe80::/10") (net.parseAddr "febf::1")  # true
 ```
 
-## Hosts and subnets
+## Hosts
 
-`host n c` returns the `n`-th address of `c`. Negative `n` counts from the end.
-
-`hostCidr n c` is `host` that keeps the prefix length. `make len a` returns the
-network of length `len` containing `a`. `canonicalize c` clears the host bits
-of a cidr that has them.
-
-`subnet len n c` returns the `n`-th subnet of `c` that is `len` bits longer.
-`cidrAdd n c` moves `c` by `n` networks of its own size, wrapping at the end
-of the address space.
+`host n c` returns the `n`-th address of `c`. A negative `n` counts from the
+end. It throws if `n` is out of range.
 
 ```nix
-net.formatAddr (net.host (-1) "192.168.1.0/24")        # "192.168.1.255"
-net.format (net.subnet 4 15 "10.1.2.0/24")             # "10.1.2.240/28"
-net.format (net.cidrAdd 2 "127.0.0.0/8")               # "129.0.0.0/8"
-net.format (net.make 40 "dead:cafe:beef::feed:f00d")   # "dead:cafe:be00::/40"
+net.formatAddr (net.host 5 "192.168.1.0/24")      # "192.168.1.5"
+net.formatAddr (net.host (-1) "192.168.1.0/24")   # "192.168.1.255"
 ```
 
-`host` and `subnet` throw if `n` is out of range.
+`hostCidr n c` does the same but keeps the prefix length.
+
+```nix
+net.format (net.hostCidr 5 "192.168.1.0/24")      # "192.168.1.5/24"
+```
+
+`make len a` returns the network of length `len` that contains `a`.
+`canonicalize c` clears the host bits of a cidr that has them.
+
+```nix
+net.format (net.make 24 "192.168.1.77")                          # "192.168.1.0/24"
+net.format (net.canonicalize (net.parseHost "192.168.1.77/24"))  # "192.168.1.0/24"
+```
+
+## Subnets
+
+`subnet len n c` returns the `n`-th subnet of `c` that is `len` bits longer. It
+throws if `n` is out of range.
+
+```nix
+net.format (net.subnet 2 1 "192.168.0.0/24")   # "192.168.0.64/26"
+net.format (net.subnet 16 1 "2001:db8::/32")   # "2001:db8:1::/48"
+```
+
+`cidrAdd n c` moves `c` by `n` networks of its own size and wraps around at the
+end of the address space.
+
+```nix
+net.format (net.cidrAdd 2 "127.0.0.0/8")   # "129.0.0.0/8"
+net.format (net.cidrAdd 1 "255.0.0.0/8")   # "0.0.0.0/8"
+```
 
 ## Address arithmetic
 
-`ipAdd n a` and `ipSubtract n a` add to or subtract from an address, wrapping
-at the family's width. `ipDiff a b` returns `a - b` as an integer.
+`ipAdd n a` and `ipSubtract n a` add to or subtract from an address. They wrap
+around at the end of the address family.
 
 ```nix
-net.formatAddr (net.ipAdd 100 "10.0.0.1")        # "10.0.0.101"
-net.ipDiff "10.0.0.1" "10.0.0.101"               # -100
+net.formatAddr (net.ipAdd 100 "10.0.0.1")           # "10.0.0.101"
+net.formatAddr (net.ipSubtract 1 "10.0.0.0")        # "9.255.255.255"
+net.formatAddr (net.ipAdd 1 "255.255.255.255")      # "0.0.0.0"
 ```
 
-`ipDiff` throws if the result does not fit in 64 bits.
+`ipDiff a b` returns `a - b` as an integer. It throws if the result does not
+fit in 64 bits.
+
+```nix
+net.ipDiff "10.0.0.1" "10.0.0.101"   # -100
+```
 
 ## Merging
 
-`mergev4 l` and `mergev6 l` return the smallest network containing every
-element of `l`, or `null` if `l` is empty. `merge l` partitions a mixed list
-and returns `{ cidrv4; cidrv6; }`.
-
-`aggregate l` removes networks covered by another and merges adjacent
-siblings. It accepts both families.
-`parseAggregate` does the same on strings.
+`mergev4 l` and `mergev6 l` return the smallest network that contains every
+element of `l`, or `null` if `l` is empty.
 
 ```nix
+net.format (net.mergev4 [ "192.168.1.1/24" "192.168.6.1/32" ])
+# "192.168.0.0/21"
 net.format (net.mergev6 [ "fd00:dead:cafe::/64" "fd00:fd12:3456:7890::/56" ])
 # "fd00:c000::/18"
+```
 
-net.parseAggregate [ "10.0.0.0/25" "10.0.0.128/25" "10.0.0.5/32" ]
-# [ "10.0.0.0/24" ]
+`merge l` accepts a mixed list and returns one network per family.
+
+```nix
+let m = net.merge [ "10.0.0.1" "10.0.0.2" "fd00::1" "fd00::2" ]; in
+[ (net.format m.cidrv4) (net.format m.cidrv6) ]
+# [ "10.0.0.0/30" "fd00::/126" ]
+```
+
+`aggregate l` drops networks covered by another and merges adjacent siblings.
+`parseAggregate` takes and returns strings.
+
+```nix
+net.parseAggregate [ "10.0.0.0/25" "10.0.0.128/25" "10.0.0.5/32" "192.168.0.0/24" ]
+# [ "10.0.0.0/24" "192.168.0.0/24" ]
 ```
 
 ## Assigning addresses
 
-`assignIps c reserved names` maps every name to an address in `c` by hashing
-it with SHA-256 and probing linearly on collision. The result does not depend
-on the order of `names`, and adding a name does not move existing ones. The
-first and last address and everything in `reserved` are skipped.
+`assignIps c reserved names` gives each name an address in `c`, derived from a
+hash of the name.
 
 ```nix
 net.assignIps "192.168.100.0/24" [ ] [ "a" "b" "c" ]
 # { a = "192.168.100.202"; b = "192.168.100.74"; c = "192.168.100.226"; }
 ```
 
-`assignIps` throws unless `c` has 2 to 62 host bits, or if there are more names
-than free addresses. It traces a warning above 30% utilisation, where
-stability degrades.
+The order of `names` does not matter, and adding a name does not change the
+others.
+
+```nix
+net.assignIps "192.168.100.0/24" [ ] [ "a" "b" "c" "d" ]
+# { a = "192.168.100.202"; b = "192.168.100.74"; c = "192.168.100.226";
+#   d = "192.168.100.137"; }
+```
+
+The first and last address are never assigned. Entries of `reserved`, which are
+offsets or addresses, are skipped as well.
+
+```nix
+net.assignIps "192.168.100.0/24" [ 202 "192.168.100.74" ] [ "a" "b" "c" ]
+# { a = "192.168.100.203"; b = "192.168.100.75"; c = "192.168.100.226"; }
+```
+
+`assignIps` throws if `c` has fewer than 2 or more than 62 host bits, or if
+there are more names than free addresses.
 
 ## MAC addresses
 
