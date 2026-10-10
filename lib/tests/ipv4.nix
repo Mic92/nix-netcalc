@@ -1,5 +1,5 @@
 let
-  v = import ../default.nix;
+  v = import ../../default.nix;
   raw = (import ./reference.nix).lib.net;
   eq =
     name: a: b:

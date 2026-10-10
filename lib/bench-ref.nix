@@ -2,7 +2,7 @@
 { n ? 5000, op ? "parse", impl ? "ours" }:
 let
   ours = import ../default.nix;
-  ref = (import ./reference.nix).lib.net;
+  ref = (import ./tests/reference.nix).lib.net;
   idx = builtins.genList (i: i) n;
   mk6 = i: "2001:db8:${toString (i / 9000 + 1)}:${toString (i - (i / 9000) * 9000 + 1)}::/64";
   mk4 = i: "10.${toString (i / 65536)}.${toString (i / 256 - (i / 65536) * 256)}.${toString (i - (i / 256) * 256)}/32";
