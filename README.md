@@ -165,16 +165,36 @@ stability degrades.
 
 ## MAC addresses
 
-`net.mac` mirrors the address functions on 48-bit integers. `mac.parse` and
-`mac.format` convert between strings and integers. `mac.add`, `mac.subtract`
-and `mac.diff` return integers and wrap modulo 2^48. `mac.addPrivate base n`
-returns `base + n` with the second nibble replaced by `2`, which yields a
-locally administered address. `mac.assignMacs base bits reserved names` is
-`assignIps` over `[base, base + 2^bits)`.
+A MAC address is a 48-bit integer. `mac.parse` and `mac.format` convert
+between it and the string form.
+
+```nix
+net.mac.parse "00:00:00:00:01:00"   # 256
+net.mac.format 256                  # "00:00:00:00:01:00"
+```
+
+`mac.add` and `mac.subtract` return integers and wrap around at 2^48.
+`mac.diff` returns the distance between two addresses.
 
 ```nix
 net.mac.format (net.mac.add 100 "fe:ed:fa:ce:f0:0d")   # "fe:ed:fa:ce:f0:71"
-net.mac.addPrivate "00:11:22:33:44:55" 1               # "02:11:22:33:44:56"
+net.mac.format (net.mac.add 1 "ff:ff:ff:ff:ff:ff")      # "00:00:00:00:00:00"
+net.mac.diff "fe:ed:fa:ce:f0:71" "fe:ed:fa:ce:f0:0d"    # 100
+```
+
+`mac.addPrivate base n` adds `n` to `base` and returns a locally administered
+address.
+
+```nix
+net.mac.addPrivate "00:11:22:33:44:55" 1   # "02:11:22:33:44:56"
+```
+
+`mac.assignMacs base bits reserved names` works like `assignIps`, within
+`[base, base + 2^bits)`.
+
+```nix
+net.mac.assignMacs "11:22:33:00:00:00" 24 [ ] [ "a" "b" "c" ]
+# { a = "11:22:33:1b:bd:ca"; b = "11:22:33:39:59:4a"; c = "11:22:33:50:7a:e2"; }
 ```
 
 ## Development
