@@ -199,7 +199,7 @@ builtins.all (x: x) (
     map (
       i:
       let
-        # the reference host is unchecked; apply the net.nix range check
+        # The reference host is unchecked. Apply the net.nix range check.
         cap = raw.cidr.capacity n;
         inRange = i >= -cap && i < cap;
       in

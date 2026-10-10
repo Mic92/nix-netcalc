@@ -1,6 +1,6 @@
 # Single entry point: nix-instantiate --eval --strict lib/tests
-# Evaluates to true if every suite passes; otherwise the failing assertion is
-# thrown with the name of its suite.
+# Evaluates to true if every suite passes.
+# Otherwise the failing assertion is thrown with the name of its suite.
 let
   suites = {
     ipv4 = import ./ipv4.nix;

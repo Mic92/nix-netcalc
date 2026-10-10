@@ -1,4 +1,4 @@
-# MAC address arithmetic. A MAC is a 48-bit integer; arithmetic wraps mod 2^48.
+# MAC address arithmetic. A MAC is a 48-bit integer. Arithmetic wraps mod 2^48.
 let
   inherit (builtins)
     bitAnd

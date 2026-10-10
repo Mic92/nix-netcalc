@@ -2,7 +2,7 @@
 let
   v = import ../../default.nix;
   raw = (import ./reference.nix).lib.net;
-  # net.nix (oddlama) wraps host with a range check; reproduce it here
+  # net.nix (oddlama) wraps host with a range check. Reproduce it here.
   ref = raw // {
     cidr = raw.cidr // {
       host =
@@ -16,7 +16,8 @@ let
         result;
     };
   };
-  # the reference prints some addresses IPv4-style (::0.1.0.0); compare as addresses
+  # The reference prints some addresses IPv4-style (::0.1.0.0).
+  # Compare as addresses.
   norm =
     x:
     if

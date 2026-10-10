@@ -77,8 +77,8 @@ let
   };
   hexChars = stringToCharacters "0123456789abcdef";
 
-  # two-hex-digit -> byte lookup (all case combinations); a hextet is two
-  # table hits on a zero-padded string
+  # Two-hex-digit to byte lookup, for all case combinations.
+  # A hextet is two table hits on a zero-padded string.
   byteTable =
     let
       digits = [
@@ -246,7 +246,7 @@ let
   ];
   off = v4: if v4 then 96 else 0;
   maxLen = v4: if v4 then 32 else 128;
-  # IPv4 values carry a tag; IPv6 values are plain word lists
+  # IPv4 values carry a tag. IPv6 values are plain word lists.
   wrap =
     v4: w:
     if v4 then
@@ -355,7 +355,7 @@ let
 
   get = w: i: if i < 0 || i > 3 then 0 else elemAt w i;
 
-  # 128-bit shifts; every intermediate stays below 2^32 so nothing overflows
+  # 128-bit shifts. Every intermediate stays below 2^32, so nothing overflows.
   shl =
     w: k:
     let
@@ -578,7 +578,7 @@ let
       128;
 
   # Smallest network containing every given cidr/address (host bits count as
-  # addresses); a bare address is a host route. null for the empty list.
+  # addresses). A bare address is a host route. Returns null for the empty list.
   mergeCidrs =
     cs0:
     let
@@ -598,8 +598,9 @@ let
     v4: name: cs:
     if builtins.all (c: isV4 c == v4) cs then mergeCidrs cs else throw "${name}: wrong address family";
 
-  # Stable hash-based address assignment with linear probing; the order of
-  # `hosts` does not matter. `reserved` holds offsets or addresses.
+  # Stable hash-based address assignment with linear probing.
+  # The order of `hosts` does not matter.
+  # `reserved` holds offsets or addresses.
   assignIps =
     net0: reserved: hosts:
     let
@@ -694,8 +695,8 @@ let
     && parent a == parent b;
 
   # Sort, drop covered networks and merge siblings into supernets.
-  # The stack is a linked list of cells so push/pop are O(1); a plain
-  # `[ c ] ++ stack` would copy the stack each time (quadratic).
+  # The stack is a linked list of cells, so push and pop are O(1).
+  # A plain `[ c ] ++ stack` would copy the stack each time (quadratic).
   aggregate =
     cs:
     let
