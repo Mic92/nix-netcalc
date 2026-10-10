@@ -3,8 +3,7 @@
 IPv4, IPv6 and MAC address arithmetic in pure Nix.
 
 The library depends on `builtins` only. Addresses are stored as four 32-bit
-words, so all arithmetic stays within Nix's signed 64-bit integers. It is
-several times faster than the `netu.nix` library it is modelled on.
+words, so all arithmetic stays within Nix's signed 64-bit integers.
 
 ## Usage
 
@@ -137,7 +136,7 @@ element of `l`, or `null` if `l` is empty. `merge l` partitions a mixed list
 and returns `{ cidrv4; cidrv6; }`.
 
 `aggregate l` removes networks covered by another and merges adjacent
-siblings. It accepts both families and runs in `O(n log n)`.
+siblings. It accepts both families.
 `parseAggregate` does the same on strings.
 
 ```nix
@@ -169,22 +168,14 @@ stability degrades.
 `net.mac` mirrors the address functions on 48-bit integers. `mac.parse` and
 `mac.format` convert between strings and integers. `mac.add`, `mac.subtract`
 and `mac.diff` return integers and wrap modulo 2^48. `mac.addPrivate base n`
-returns `base + n` with the second nibble replaced by `2`, which yields a locally administered address. `mac.assignMacs base
-bits reserved names` is `assignIps` over `[base, base + 2^bits)`.
+returns `base + n` with the second nibble replaced by `2`, which yields a
+locally administered address. `mac.assignMacs base bits reserved names` is
+`assignIps` over `[base, base + 2^bits)`.
 
 ```nix
 net.mac.format (net.mac.add 100 "fe:ed:fa:ce:f0:0d")   # "fe:ed:fa:ce:f0:71"
 net.mac.addPrivate "00:11:22:33:44:55" 1               # "02:11:22:33:44:56"
 ```
-
-## Compatibility
-
-Every function of duairc's `netu.nix`, as used by oddlama's
-[nixos-extra-modules](https://github.com/oddlama/nixos-extra-modules), has an
-equivalent here, except the NixOS option types and arithmetic that mixes
-address kinds. `contains` there is `containsAddr` here.
-
-`overlaps`, `aggregate` and the cidr form of `contains` are additions.
 
 ## Development
 
@@ -195,13 +186,12 @@ $ nix-instantiate --eval --strict lib/mac-tests.nix
 $ nix-instantiate --eval --strict lib/parity.nix
 ```
 
-Each prints `true` on success. `lib/parity.nix` and `lib/v4-tests.nix` fetch
-`netu.nix` at a pinned commit and need network access on the first run. That
-version's `ip.add`, `ip.subtract`, `ip.diff` and `cidr.add` are broken, so the
-tests check those against values computed with Python's `ipaddress`.
+Each prints `true` on success. `lib/parity.nix` and `lib/v4-tests.nix` compare
+against an independent reference implementation, fetched at a pinned commit,
+and need network access on the first run. Functions the reference gets wrong
+are checked against values computed with Python's `ipaddress`.
 
-`lib/bench.nix` and `lib/bench-ref.nix` benchmark this library and compare it
-with `netu.nix`.
+`lib/bench.nix` benchmarks the library.
 
 ## License
 

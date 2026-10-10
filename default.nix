@@ -806,7 +806,7 @@ in
     wrap h.v4 h.addr;
   isv4 = isV4;
   isv6 = x: !isV4 x;
-  # number of host bits, like duairc's net.cidr.size
+  # number of host bits
   size = c: hostBits (toCidr c);
   parseAggregate = l: map format (aggregate (map parse l));
   mac = import ./lib/mac.nix;
