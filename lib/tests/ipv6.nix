@@ -88,4 +88,12 @@ builtins.all (x: x) [
   (eq "host-oob" (builtins.tryEval (v.host 256 "fd00::/120")).success false)
   (eq "host-neg" (v.formatAddr (v.host (-1) "fd00::/120")) "fd00::ff")
   (eq "bad-v4" (builtins.tryEval (v.parseAddr "::1.2.3.256")).success false)
+  (eq "mergedoc" (v.format (
+    v.mergev6 [
+      "fd00:dead:cafe::/64"
+      "fd00:fd12:3456:7890::/56"
+    ]
+  )) "fd00:c000::/18")
+  (eq "embedded" (v.formatAddr (v.parseAddr "::ffff:1.2.3.4")) "::ffff:102:304")
+  (eq "embedded-nat64" (v.formatAddr (v.parseAddr "64:ff9b::192.0.2.33")) "64:ff9b::c000:221")
 ]

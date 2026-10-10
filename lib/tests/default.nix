@@ -6,7 +6,7 @@ let
     ipv4 = import ./ipv4.nix;
     ipv6 = import ./ipv6.nix;
     mac = import ./mac.nix;
-    parity = import ./parity.nix;
+    oracle = import ./oracle.nix;
   };
 in
 builtins.all (x: x) (
