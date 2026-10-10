@@ -1,8 +1,8 @@
-# Compares the library against oracle-data.nix, whose expected values come
+# Compares the library against oracle-data.json, whose expected values come
 # from Python's ipaddress module (see gen-oracle.py).
 let
   v = import ../../default.nix;
-  d = import ./oracle-data.nix;
+  d = builtins.fromJSON (builtins.readFile ./oracle-data.json);
   at = builtins.elemAt;
   eq =
     name: got: want:

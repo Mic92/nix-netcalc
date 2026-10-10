@@ -256,7 +256,7 @@ true
 ```
 
 Expected values for the oracle tests come from Python's `ipaddress`.
-Regenerate them with `python3 lib/tests/gen-oracle.py > lib/tests/oracle-data.nix`.
+Regenerate them with `python3 lib/tests/gen-oracle.py > lib/tests/oracle-data.json`.
 
 ## License
 
