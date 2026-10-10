@@ -1,57 +1,37 @@
 # nix-netcalc
 
-IPv4, IPv6 and MAC address calculator in pure Nix. It uses builtins only, so
-there is no `nixpkgs.lib` dependency.
+IPv4, IPv6 and MAC address arithmetic in pure Nix.
 
-## Quick start
+The library depends on `builtins` only. Addresses are stored as four 32-bit
+words, so all arithmetic stays within Nix's signed 64-bit integers. It is
+several times faster than the `netu.nix` library it is modelled on.
 
-Pick one way to get the library. All three give you the same `net` attribute
-set.
+## Usage
 
-### Flake
-
-`flake.nix`:
+With flakes:
 
 ```nix
 {
   inputs.nix-netcalc.url = "github:Mic92/nix-netcalc";
 
-  outputs =
-    { nix-netcalc, ... }:
-    let
-      net = nix-netcalc.lib;
-    in
-    {
-      subnet = net.format (net.subnet 4 15 "10.1.2.0/24");
-    };
+  outputs = { nix-netcalc, ... }: {
+    subnet = nix-netcalc.lib.format (nix-netcalc.lib.subnet 4 15 "10.1.2.0/24");
+  };
 }
 ```
 
-```console
-$ nix eval .#subnet
-"10.1.2.240/28"
-```
-
-### npins
+With [npins](https://github.com/andir/npins):
 
 ```console
-$ npins init --bare
 $ npins add github Mic92 nix-netcalc -b main
 ```
 
-`default.nix`:
-
 ```nix
-let
-  sources = import ./npins;
-  net = import sources.nix-netcalc;
-in
+let net = import (import ./npins).nix-netcalc; in
 net.format (net.subnet 4 15 "10.1.2.0/24")
 ```
 
-### fetchTarball
-
-Pin a commit and its hash:
+With `fetchTarball`:
 
 ```nix
 let
@@ -63,294 +43,166 @@ in
 net.format (net.subnet 4 15 "10.1.2.0/24")
 ```
 
-Get the hash with
-`nix hash convert --hash-algo sha256 --to sri $(nix-prefetch-url --unpack <url>)`.
+All three evaluate to `"10.1.2.240/28"`.
 
-## Concepts
+## Conventions
 
-Nix has only signed 64-bit integers, so an address is stored as four 32-bit
-words. Every function accepts the type it needs in the most convenient form:
+A *cidr* argument is a string such as `"10.0.0.0/8"` or a record returned by
+`parse`. An *address* is a string or a value returned by `parseAddr`. A bare
+address is a host route. Output follows RFC 5952.
 
-| Argument | Accepted forms |
-|---|---|
-| **cidr** | string (`"10.0.0.0/8"`) or a record returned by `parse` and friends |
-| **address** | string (`"::1"`), or a value returned by `parseAddr`, `host`, `ip`, `ipAdd`, … |
-| **offset / delta** | integer, or an address (added as a number) |
+Functions that return a cidr or an address return a value, not a string. Pass
+it to `format` or `formatAddr`. Invalid input is reported with `throw`.
 
-- A bare address such as `"10.1.2.3"` is a host route (`/32`, or `/128` for IPv6).
-- Functions that return **cidrs** return records. Turn them into strings with `format`.
-- Functions that return **addresses** return values you turn into strings with
-  `formatAddr`.
-- Functions that return **numbers or booleans** return them directly.
-- Errors are `throw`s: bad input, out-of-range `host`, mixed families, and so on.
-- IPv4 and IPv6 never mix. Cross-family `contains`, `child` and `overlaps`
-  return `false`. `merge`, `mergev4` and `mergev6` throw for the wrong family.
-- Output is RFC 5952: `2001:db8::1`, lowercase, longest zero run compressed.
+IPv4 and IPv6 are distinct families. Comparing across families returns `false`.
 
-## Parsing and formatting
+## Parsing
 
-### `parse :: string -> cidr`
-Parses a network. Host bits are cleared.
+`parse c` parses a network and clears its host bits. `parseHost c` keeps them.
+`parseAddr a` parses an address, including embedded IPv4 such as
+`::ffff:1.2.3.4`.
 
 ```nix
-net.format (net.parse "2001:db8::1/32")    # "2001:db8::/32"
-net.format (net.parse "192.168.1.77/24")   # "192.168.1.0/24"
-net.format (net.parse "10.1.2.3")          # "10.1.2.3/32"
-```
-
-### `parseHost :: string -> cidr`
-Same as `parse` but keeps host bits. Use it for interface addresses.
-
-```nix
+net.format (net.parse "192.168.1.77/24")       # "192.168.1.0/24"
 net.format (net.parseHost "192.168.1.77/24")   # "192.168.1.77/24"
+net.formatAddr (net.parseAddr "2001:0DB8::1")  # "2001:db8::1"
 ```
 
-### `parseAddr :: string -> address`
+## Inspecting
+
+| Function | Returns |
+|---|---|
+| `length c` | The prefix length. |
+| `ip c` | The address, host bits included. |
+| `netmask c` | The netmask as a string. |
+| `size c` | The number of host bits. |
+| `capacity c` | The number of addresses, saturating at `2^63 - 1`. |
+| `isv4 x`, `isv6 x` | Whether `x` is an IPv4 or IPv6 address or cidr. |
 
 ```nix
-net.formatAddr (net.parseAddr "2001:0DB8:0:0:0:0:0:1")   # "2001:db8::1"
-net.formatAddr (net.parseAddr "::ffff:1.2.3.4")          # "::ffff:102:304" (embedded IPv4)
+net.netmask "172.16.0.0/12"        # "255.240.0.0"
+net.capacity "172.16.0.0/12"       # 1048576
 ```
-
-### `format :: cidr -> string`, `formatAddr :: address -> string`
-
-## Inspecting a network
-
-All of these take a cidr string or record.
-
-| Function | Result | Example |
-|---|---|---|
-| `netmask c` | string | `netmask "172.16.0.0/12"` → `"255.240.0.0"`; `netmask "2001:db8::/37"` → `"ffff:ffff:f800::"` |
-| `length c` | int | `length "10.1.2.3/20"` → `20` |
-| `ip c` | address | `formatAddr (ip "192.168.1.100/24")` → `"192.168.1.100"` |
-| `size c` | int, host bits | `size "10.0.0.0/8"` → `24` |
-| `capacity c` | int, 2^host bits, saturates at `9223372036854775807` | `capacity "172.16.0.0/12"` → `1048576` |
-| `isv4 x` / `isv6 x` | bool | `isv4 "10.0.0.1/8"` → `true` |
-
-The first and last address of a network are `host 0 c` and `host (-1) c`.
-`length` and `ip` keep host bits, so `ip "192.168.1.100/24"` is the original
-address, not the network address.
 
 ## Relations
 
+`contains a b` returns whether `b` lies within `a`, and `containsAddr c a` does
+the same for an address. `child sub c` is the strict form: it is `false` when
+both have the same prefix length. `overlaps a b` returns whether either
+contains the other. `contains`, `containsAddr` and `overlaps` take records;
+`child` takes either.
+
 ```nix
-net.contains   (net.parse "10.0.0.0/8") (net.parse "10.1.0.0/16")   # true (also true for equal networks)
-net.child      "10.10.10.0/24" "10.0.0.0/8"                         # true
-net.child      "10.0.0.0/8"    "10.0.0.0/8"                         # false: child is strict
-net.overlaps   (net.parse "10.0.0.0/8") (net.parse "10.1.0.0/16")   # true
+net.child "10.10.10.0/24" "10.0.0.0/8"                              # true
 net.containsAddr (net.parse "fe80::/10") (net.parseAddr "febf::1")  # true
 ```
 
-`contains`, `overlaps` and `containsAddr` take **records** (use `parse`).
-`child` takes strings or records.
+## Hosts and subnets
 
-## Building cidrs
+`host n c` returns the `n`-th address of `c`. Negative `n` counts from the end.
 
-```nix
-net.format (net.make 40 "dead:cafe:beef::feed:face:f00d")   # "dead:cafe:be00::/40"
-net.format (net.make 24 "192.168.0.150")                    # "192.168.0.0/24"
-net.format (net.make 99 "192.168.0.150")                    # "192.168.0.150/32" (length is clamped)
-net.format (net.canonicalize "192.168.1.100/24")            # "192.168.1.0/24"
-```
+`hostCidr n c` is `host` that keeps the prefix length. `make len a` returns the
+network of length `len` containing `a`. `canonicalize c` clears the host bits
+of a cidr that has them.
 
-## Hosts
-
-### `host :: int|address -> cidr -> address`
-The n-th address of a network. Negative numbers count from the end. Out-of-range
-indices throw.
+`subnet len n c` returns the `n`-th subnet of `c` that is `len` bits longer.
+`cidrAdd n c` moves `c` by `n` networks of its own size, wrapping at the end
+of the address space.
 
 ```nix
-net.formatAddr (net.host 5 "192.168.1.0/24")               # "192.168.1.5"
-net.formatAddr (net.host (-1) "192.168.1.0/24")            # "192.168.1.255"
-net.formatAddr (net.host 10000 "dead:cafe:beef::/64")      # "dead:cafe:beef::2710"
-net.host 256 "192.168.1.0/24"                              # error: lies outside
+net.formatAddr (net.host (-1) "192.168.1.0/24")        # "192.168.1.255"
+net.format (net.subnet 4 15 "10.1.2.0/24")             # "10.1.2.240/28"
+net.format (net.cidrAdd 2 "127.0.0.0/8")               # "129.0.0.0/8"
+net.format (net.make 40 "dead:cafe:beef::feed:f00d")   # "dead:cafe:be00::/40"
 ```
 
-### `hostCidr :: int|address -> cidr -> cidr`
-Like `host`, but keeps the prefix length.
-
-```nix
-net.format (net.hostCidr 2 "192.168.1.0/24")   # "192.168.1.2/24"
-```
-
-## Subnets
-
-### `subnet :: int -> int|address -> cidr -> cidr`
-`subnet len n c` returns the n-th subnet that is `len` bits longer than `c`.
-
-```nix
-net.format (net.subnet 4 15 "10.1.2.0/24")                  # "10.1.2.240/28"
-net.format (net.subnet 16 162 "fd00:fd12:3456:7890::/56")   # "fd00:fd12:3456:7800:a200::/72"
-```
-
-To list every subnet, map over the index:
-
-```nix
-map (i: net.format (net.subnet 2 i "192.168.0.0/24")) (builtins.genList (i: i) 4)
-# [ "192.168.0.0/26" "192.168.0.64/26" "192.168.0.128/26" "192.168.0.192/26" ]
-```
-
-### `cidrAdd :: int|address -> cidr -> cidr`
-Shifts a network by n networks of its own size. It wraps at the address width.
-
-```nix
-net.format (net.cidrAdd 2 "127.0.0.0/8")      # "129.0.0.0/8"
-net.format (net.cidrAdd (-2) "127.0.0.0/8")   # "125.0.0.0/8"
-```
+`host` and `subnet` throw if `n` is out of range.
 
 ## Address arithmetic
 
-```nix
-net.formatAddr (net.ipAdd 100 "10.0.0.1")                   # "10.0.0.101"
-net.formatAddr (net.ipAdd 100 "dead:cafe:beef::")           # "dead:cafe:beef::64"
-net.formatAddr (net.ipSubtract 1 "10.0.0.0")                # "9.255.255.255"
-net.formatAddr (net.ipAdd 1 "255.255.255.255")              # "0.0.0.0" (wraps)
-net.ipDiff "10.0.0.101" "10.0.0.1"                          # 100
-net.ipDiff "10.0.0.1" "10.0.0.101"                          # -100
-```
-
-`ipDiff` throws if the difference does not fit a 64-bit integer.
-
-## Merging and aggregating
-
-### `mergev4`, `mergev6 :: [cidr|address] -> cidr|null`
-The smallest network that contains everything in the list. Bare addresses count
-as host routes. Returns `null` for the empty list.
+`ipAdd n a` and `ipSubtract n a` add to or subtract from an address, wrapping
+at the family's width. `ipDiff a b` returns `a - b` as an integer.
 
 ```nix
-net.format (net.mergev4 [ "192.168.1.1/24" "192.168.6.1/32" ])                   # "192.168.0.0/21"
-net.format (net.mergev6 [ "fd00:dead:cafe::/64" "fd00:fd12:3456:7890::/56" ])    # "fd00:c000::/18"
+net.formatAddr (net.ipAdd 100 "10.0.0.1")        # "10.0.0.101"
+net.ipDiff "10.0.0.1" "10.0.0.101"               # -100
 ```
 
-### `merge :: [cidr|address] -> { cidrv4; cidrv6; }`
-Splits a mixed list by family and merges each part.
+`ipDiff` throws if the result does not fit in 64 bits.
+
+## Merging
+
+`mergev4 l` and `mergev6 l` return the smallest network containing every
+element of `l`, or `null` if `l` is empty. `merge l` partitions a mixed list
+and returns `{ cidrv4; cidrv6; }`.
+
+`aggregate l` removes networks covered by another and merges adjacent
+siblings. It accepts both families and runs in `O(n log n)`.
+`parseAggregate` does the same on strings.
 
 ```nix
-let m = net.merge [ "10.0.0.1" "10.0.0.2" "fd00::1" "fd00::2" ]; in
-[ (net.format m.cidrv4) (net.format m.cidrv6) ]   # [ "10.0.0.0/30" "fd00::/126" ]
+net.format (net.mergev6 [ "fd00:dead:cafe::/64" "fd00:fd12:3456:7890::/56" ])
+# "fd00:c000::/18"
+
+net.parseAggregate [ "10.0.0.0/25" "10.0.0.128/25" "10.0.0.5/32" ]
+# [ "10.0.0.0/24" ]
 ```
 
-### `aggregate :: [cidr(record)] -> [cidr]`, `parseAggregate :: [string] -> [string]`
-Route aggregation: sorts, drops networks covered by another and merges sibling
-networks into their parent. IPv4 and IPv6 may be mixed. IPv4 sorts first.
+## Assigning addresses
 
-```nix
-net.parseAggregate [ "10.0.0.0/25" "10.0.0.128/25" "10.0.1.0/24" "192.168.0.0/24" "10.0.0.5/32" ]
-# [ "10.0.0.0/23" "192.168.0.0/24" ]
-```
-
-It scales roughly as n log n: about 4 s for 100k networks, including parsing.
-
-## Stable address assignment
-
-### `assignIps :: cidr -> [int|address] -> [string] -> { name = "address"; }`
-Gives each name a semi-stable address by hashing it with sha256 and probing
-linearly on collisions.
-
-- The result does not depend on the order of the list.
-- Adding a name does not change the addresses of existing names.
-- The first address, the last address and anything in the reserved list are never
-  assigned. Reserved entries are offsets or addresses.
-- It needs 2 to 62 host bits. It throws if there are more hosts than free
-  addresses and traces a warning above 30% utilisation, because stability
-  degrades.
+`assignIps c reserved names` maps every name to an address in `c` by hashing
+it with SHA-256 and probing linearly on collision. The result does not depend
+on the order of `names`, and adding a name does not move existing ones. The
+first and last address and everything in `reserved` are skipped.
 
 ```nix
 net.assignIps "192.168.100.0/24" [ ] [ "a" "b" "c" ]
 # { a = "192.168.100.202"; b = "192.168.100.74"; c = "192.168.100.226"; }
-
-net.assignIps "192.168.100.0/24" [ 202 "192.168.100.74" ] [ "a" "b" "c" ]
-# { a = "192.168.100.203"; b = "192.168.100.75"; c = "192.168.100.226"; }
 ```
 
-## MAC addresses (`net.mac`)
+`assignIps` throws unless `c` has 2 to 62 host bits, or if there are more names
+than free addresses. It traces a warning above 30% utilisation, where
+stability degrades.
 
-A MAC is a 48-bit integer. Arithmetic wraps. `parse` accepts upper or lower case.
+## MAC addresses
 
-| Function | Example |
-|---|---|
-| `mac.parse s` → int | `mac.parse "00:00:00:00:01:00"` → `256` |
-| `mac.format n` → string | `mac.format 256` → `"00:00:00:00:01:00"` |
-| `mac.add delta mac` | `mac.format (mac.add 100 "fe:ed:fa:ce:f0:0d")` → `"fe:ed:fa:ce:f0:71"` |
-| `mac.subtract delta mac` | `mac.format (mac.subtract 100 "fe:ed:fa:ce:f0:71")` → `"fe:ed:fa:ce:f0:0d"` |
-| `mac.diff a b` → int | `mac.diff "fe:ed:fa:ce:f0:71" "fe:ed:fa:ce:f0:0d"` → `100` |
-| `mac.addPrivate base offset` | `mac.addPrivate "00:11:22:33:44:55" 1` → `"02:11:22:33:44:56"` (forces a locally administered address) |
-
-`delta` and `mac` accept an integer or a MAC string. `mac.add`, `mac.subtract`
-and `mac.diff` all return integers, so pass the result of `add` or `subtract` to
-`mac.format` to get a string. `addPrivate` returns a string directly.
-
-### `mac.assignMacs :: mac -> int -> [int|mac] -> [string] -> { name = "mac"; }`
-The same hash-and-probe scheme as `assignIps`, in the range
-`[base, base + 2^size)`. The low `size` bits of `base` must be zero.
+`net.mac` mirrors the address functions on 48-bit integers. `mac.parse` and
+`mac.format` convert between strings and integers. `mac.add`, `mac.subtract`
+and `mac.diff` return integers and wrap modulo 2^48. `mac.addPrivate base n`
+returns `base + n` with the second nibble replaced by `2`, which yields a locally administered address. `mac.assignMacs base
+bits reserved names` is `assignIps` over `[base, base + 2^bits)`.
 
 ```nix
-net.mac.assignMacs "11:22:33:00:00:00" 24 [ ] [ "a" "b" "c" ]
-# { a = "11:22:33:1b:bd:ca"; b = "11:22:33:39:59:4a"; c = "11:22:33:50:7a:e2"; }
+net.mac.format (net.mac.add 100 "fe:ed:fa:ce:f0:0d")   # "fe:ed:fa:ce:f0:71"
+net.mac.addPrivate "00:11:22:33:44:55" 1               # "02:11:22:33:44:56"
 ```
 
-## Behaviour notes
+## Compatibility
 
-- **Sorting:** `aggregate` orders by family, address and then prefix length.
-- **Cross-family arithmetic:** `ipAdd`, `ipSubtract` and `ipDiff` take the family
-  of the address argument. A delta given as an address is added as a number.
+Every function of duairc's `netu.nix`, as used by oddlama's
+[nixos-extra-modules](https://github.com/oddlama/nixos-extra-modules), has an
+equivalent here, except the NixOS option types and arithmetic that mixes
+address kinds. `contains` there is `containsAddr` here.
 
-## Coverage of duairc's `netu.nix` / oddlama's `net.nix`
+`overlaps`, `aggregate` and the cidr form of `contains` are additions.
 
-| Reference | Here |
-|---|---|
-| `net.ip.add` / `subtract` / `diff` | `ipAdd` / `ipSubtract` / `ipDiff` |
-| `net.ip.isv4` / `isv6` | `isv4` / `isv6` |
-| `net.cidr.add` | `cidrAdd` |
-| `net.cidr.child` | `child` |
-| `net.cidr.contains` | `containsAddr` |
-| `net.cidr.capacity` | `capacity` |
-| `net.cidr.host` | `host` |
-| `net.cidr.hostCidr` | `hostCidr` |
-| `net.cidr.ip` | `ip` |
-| `net.cidr.length` | `length` |
-| `net.cidr.make` | `make` |
-| `net.cidr.canonicalize` | `canonicalize` |
-| `net.cidr.netmask` | `netmask` |
-| `net.cidr.size` | `size` |
-| `net.cidr.subnet` | `subnet` |
-| `net.cidr.mergev4` / `mergev6` / `merge` | `mergev4` / `mergev6` / `merge` |
-| `net.cidr.assignIps` | `assignIps` |
-| `net.mac.add` / `subtract` / `diff` | `mac.add` / `mac.subtract` / `mac.diff` |
-| `net.mac.addPrivate` / `assignMacs` | `mac.addPrivate` / `mac.assignMacs` |
-| parsers and builders | `parse`, `parseHost`, `parseAddr`, `format`, `formatAddr`, `mac.parse`, `mac.format` |
+## Development
 
-Not covered: the NixOS option types (`types.net`) and mixed-type arithmetic
-such as adding a MAC to an IPv4 address.
-
-Beyond the reference: `overlaps`, `contains` on cidrs, and `aggregate`.
-
-## Tests
-
-```sh
-nix-instantiate --eval --strict lib/tests.nix      # IPv6
-nix-instantiate --eval --strict lib/v4-tests.nix   # IPv4
-nix-instantiate --eval --strict lib/mac-tests.nix  # MAC
-nix-instantiate --eval --strict lib/parity.nix     # IPv6, against duairc's netu.nix
+```console
+$ nix-instantiate --eval --strict lib/tests.nix
+$ nix-instantiate --eval --strict lib/v4-tests.nix
+$ nix-instantiate --eval --strict lib/mac-tests.nix
+$ nix-instantiate --eval --strict lib/parity.nix
 ```
 
-Each prints `true` on success and throws a descriptive error on failure.
-`lib/parity.nix` and `lib/v4-tests.nix` compare against duairc's `netu.nix`, which they
-fetch at a pinned commit of
-[oddlama/nixos-extra-modules](https://github.com/oddlama/nixos-extra-modules)
-(see `lib/reference.nix`) and need network access on the first run.
-In that version `ip.add`, `ip.subtract`, `ip.diff` and `cidr.add` are broken, so those functions are tested against values computed with Python's
-`ipaddress` module.
+Each prints `true` on success. `lib/parity.nix` and `lib/v4-tests.nix` fetch
+`netu.nix` at a pinned commit and need network access on the first run. That
+version's `ip.add`, `ip.subtract`, `ip.diff` and `cidr.add` are broken, so the
+tests check those against values computed with Python's `ipaddress`.
 
-## Benchmarking
-
-```sh
-NIX_SHOW_STATS=1 NIX_SHOW_STATS_PATH=/tmp/s.json \
-  nix-instantiate --eval --strict lib/bench.nix --arg n 50000 --argstr op aggregate
-```
-
-`op` is one of `noop`, `parse`, `format`, `contains` or `aggregate`.
+`lib/bench.nix` and `lib/bench-ref.nix` benchmark this library and compare it
+with `netu.nix`.
 
 ## License
 
-MIT, see `LICENSE`.
+MIT
