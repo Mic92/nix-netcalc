@@ -3,14 +3,68 @@
 IPv4, IPv6 and MAC address calculator in pure Nix. It uses builtins only, so
 there is no `nixpkgs.lib` dependency.
 
+## Quick start
+
+Pick one way to get the library. All three give you the same `net` attribute
+set.
+
+### Flake
+
+`flake.nix`:
+
 ```nix
-# with the flake: inputs.nix-netcalc.url = "github:Mic92/nix-netcalc";
-#                 net = inputs.nix-netcalc.lib;
-let
-  net = import ./default.nix;
-in
-net.format (net.subnet 4 15 "10.1.2.0/24")   # => "10.1.2.240/28"
+{
+  inputs.nix-netcalc.url = "github:Mic92/nix-netcalc";
+
+  outputs =
+    { nix-netcalc, ... }:
+    let
+      net = nix-netcalc.lib;
+    in
+    {
+      subnet = net.format (net.subnet 4 15 "10.1.2.0/24");
+    };
+}
 ```
+
+```console
+$ nix eval .#subnet
+"10.1.2.240/28"
+```
+
+### npins
+
+```console
+$ npins init --bare
+$ npins add github Mic92 nix-netcalc -b main
+```
+
+`default.nix`:
+
+```nix
+let
+  sources = import ./npins;
+  net = import sources.nix-netcalc;
+in
+net.format (net.subnet 4 15 "10.1.2.0/24")
+```
+
+### fetchTarball
+
+Pin a commit and its hash:
+
+```nix
+let
+  net = import (builtins.fetchTarball {
+    url = "https://github.com/Mic92/nix-netcalc/archive/<commit>.tar.gz";
+    sha256 = "<hash>";
+  });
+in
+net.format (net.subnet 4 15 "10.1.2.0/24")
+```
+
+Get the hash with
+`nix hash convert --hash-algo sha256 --to sri $(nix-prefetch-url --unpack <url>)`.
 
 ## Concepts
 
