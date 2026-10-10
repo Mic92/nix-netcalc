@@ -184,13 +184,7 @@ $ nix-instantiate --eval --strict lib/tests
 true
 ```
 
-This runs every suite in `lib/tests`. A failing assertion is reported with the
-name of its suite. `parity` and `ipv4` compare against an independent reference
-implementation, fetched at a pinned commit, and need network access on the
-first run. Functions the reference gets wrong are checked against values
-computed with Python's `ipaddress`.
-
-`lib/bench.nix` benchmarks the library.
+Some tests compare against a reference implementation fetched from GitHub.
 
 ## License
 
